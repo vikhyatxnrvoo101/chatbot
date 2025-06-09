@@ -42,11 +42,10 @@ app_state = AppState()
 
 # --- Text Processing Utilities ---
 def find_relevant_transactions(query: str, transactions: List[Dict], top_k: int = 5) -> List[Dict]:
-    """Simple keyword-based transaction filtering"""
     query = query.lower()
     relevant = []
 
-    amount_match = re.search(r'(over|above|more than)\s*(\$|₹|€|£)?(\d+)', query)
+    amount_match = re.search(r'(over|above|more than)\s*(\$|\u20b9|\u20ac|\u00a3)?(\d+)', query)
     amount_threshold = float(amount_match.group(3)) if amount_match else None
 
     for txn in transactions:
@@ -109,6 +108,10 @@ class ChatResponse(BaseModel):
     error: Optional[str] = None
 
 # --- API Endpoints ---
+@app.get("/")
+async def root():
+    return {"message": "Welcome to the Transaction ChatBot API! Use /chat to interact."}
+
 @app.post("/chat", response_model=ChatResponse)
 async def chat_with_bot(request: ChatRequest):
     try:
@@ -117,34 +120,28 @@ async def chat_with_bot(request: ChatRequest):
 
         user_input = request.user_input.lower()
 
-        # Detect generic conversation (non-financial)
         if not any(keyword in user_input for keyword in [
             "spending", "transaction", "expense", "money", "category", "amount", "income", "credit", "debit"
         ]):
-            generic_prompt = f"""You are a helpful assistant.
-A user says: "{request.user_input}"
-Reply in a friendly and helpful tone."""
+            generic_prompt = f"""You are a helpful assistant.\nA user says: \"{request.user_input}\"\nReply in a friendly and helpful tone."""
             response = app_state.llm.invoke(generic_prompt)
             return ChatResponse(response=response.content)
 
-        # Financial query: Find relevant transactions
         relevant_txns = find_relevant_transactions(
             request.user_input,
             app_state.transactions,
             request.top_k
         )
 
-        # Fallback to global context if no specific relevant transactions
         if not relevant_txns:
             transactions_text = "\n".join([
                 f"{txn['date']}: {txn['type']} of {txn['amount']} to/from {txn.get('party', '?')} for {txn.get('category', '?')}"
-                for txn in app_state.transactions[:15]  # Cap at first 15 transactions to avoid token overflow
+                for txn in app_state.transactions[:15]
             ])
             context_info = f"No specific matches found. Here's a sample of recent transactions:\n{transactions_text}"
         else:
             context_info = "\n".join([
-                f"{i+1}. {txn['type']} of {txn['amount']} with {txn.get('party', '?')} "
-                f"for {txn.get('category', '?')} on {txn.get('date', '?')}"
+                f"{i+1}. {txn['type']} of {txn['amount']} with {txn.get('party', '?')} for {txn.get('category', '?')} on {txn.get('date', '?')}"
                 for i, txn in enumerate(relevant_txns)
             ])
 
@@ -162,7 +159,6 @@ Include in your answer:
 - Observations about spending patterns
 - Be precise with dates and amounts
 """
-
         response = app_state.llm.invoke(financial_prompt)
         return ChatResponse(
             response=response.content,
@@ -183,7 +179,6 @@ async def health_check():
         "transactions_loaded": len(app_state.transactions) if app_state.transactions else 0
     }
 
-# --- Local Dev ---
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run(app, host="0.0.0.0", port=8000)
