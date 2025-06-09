@@ -34,7 +34,7 @@ logger = logging.getLogger("app")
 
 # --- Application State ---
 class AppState:
-    def _init_(self):
+    def __init__(self):  # Fixed __init__ typo
         self.settings: Optional[Settings] = None
         self.llm: Optional[ChatGroq] = None
         self.transactions: List[Dict] = []
@@ -98,10 +98,10 @@ async def lifespan(app: FastAPI):
 # --- FastAPI App ---
 app = FastAPI(lifespan=lifespan)
 
-# --- CORS Middleware (Important for React/Frontend) ---
+# --- CORS Middleware ---
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # Replace with specific domain in production
+    allow_origins=["*"],  # Change to your frontend domain in production
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -190,6 +190,6 @@ async def health_check():
     }
 
 # --- Entry Point ---
-if _name_ == "_main_":
+if __name__ == "__main__":
     import uvicorn
     uvicorn.run(app, host="0.0.0.0", port=8000)
