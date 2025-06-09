@@ -4,6 +4,7 @@ import logging
 import re
 from typing import List, Dict, Optional
 from fastapi import FastAPI, HTTPException
+from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from pydantic_settings import BaseSettings
 from dotenv import load_dotenv
@@ -33,7 +34,7 @@ logger = logging.getLogger("app")
 
 # --- Application State ---
 class AppState:
-    def __init__(self):
+    def _init_(self):
         self.settings: Optional[Settings] = None
         self.llm: Optional[ChatGroq] = None
         self.transactions: List[Dict] = []
@@ -96,6 +97,15 @@ async def lifespan(app: FastAPI):
 
 # --- FastAPI App ---
 app = FastAPI(lifespan=lifespan)
+
+# --- CORS Middleware (Important for React/Frontend) ---
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],  # Replace with specific domain in production
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 # --- Models ---
 class ChatRequest(BaseModel):
@@ -179,6 +189,7 @@ async def health_check():
         "transactions_loaded": len(app_state.transactions) if app_state.transactions else 0
     }
 
-if __name__ == "__main__":
+# --- Entry Point ---
+if _name_ == "_main_":
     import uvicorn
     uvicorn.run(app, host="0.0.0.0", port=8000)
